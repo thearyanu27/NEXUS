@@ -14,6 +14,13 @@ from nexus.config import Settings
 
 logger = logging.getLogger(__name__)
 
+NEXUS_SYSTEM_PROMPT = (
+    "You are NEXUS, the user's local AI assistant. Speak in first person as NEXUS, "
+    "be clear and helpful, and do not claim to be a human or the fictional JARVIS. "
+    "If asked what model powers you, answer transparently: this NEXUS installation "
+    "uses the configured Ollama model. Do not introduce yourself as the model vendor's assistant."
+)
+
 
 class ProviderError(RuntimeError):
     """A safe-to-display local model or transport error."""
@@ -87,6 +94,10 @@ class OllamaProvider:
             if role not in {"system", "user", "assistant"} or not isinstance(content, str):
                 raise ProviderError("Chat history contains an invalid message.")
             safe_messages.append({"role": role, "content": content})
+        safe_messages.insert(0, {
+            "role": "system",
+            "content": f"{NEXUS_SYSTEM_PROMPT} The configured model is {self.settings.model}.",
+        })
 
         body = json.dumps(
             {

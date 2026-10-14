@@ -6,6 +6,7 @@ from collections.abc import Iterator, Mapping
 from contextlib import closing
 
 from nexus.config import Settings
+from nexus.agent.memory import ConversationMemory
 from nexus.models.base import ChatProvider
 from nexus.models.ollama_provider import ProviderError
 
@@ -20,7 +21,45 @@ class Conversation:
     def __init__(self, provider: ChatProvider, settings: Settings):
         self._provider = provider
         self._settings = settings
-        self._history: list[dict[str, str]] = []
+        self._memory = ConversationMemory(settings.memory_db_path)
+        saved = self._memory.list_conversations()
+        self._session_id = str(saved[0]["id"]) if saved else self._memory.create_conversation()
+        loaded = self._memory.load(self._session_id)
+        self._history = self._bounded(loaded)
+        if self._history != loaded:
+            self._memory.save(self._session_id, self._history)
+
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+
+    @property
+    def title(self) -> str:
+        return self._memory.title(self._session_id)
+
+    def saved_conversations(self) -> list[dict[str, str | int]]:
+        return self._memory.list_conversations()
+
+    def new_conversation(self) -> str:
+        self._session_id = self._memory.create_conversation()
+        self._history = []
+        return self._session_id
+
+    def select_conversation(self, session_id: str) -> None:
+        # Read before switching so a database error leaves the visible chat intact.
+        self._memory.title(session_id)
+        loaded = self._memory.load(session_id)
+        self._session_id = session_id
+        self._history = self._bounded(loaded)
+        if self._history != loaded:
+            self._memory.save(session_id, self._history)
+
+    def delete_conversation(self, session_id: str) -> None:
+        self._memory.delete(session_id)
+        if session_id == self._session_id:
+            saved = self._memory.list_conversations()
+            self._session_id = str(saved[0]["id"]) if saved else self._memory.create_conversation()
+            self._history = self._bounded(self._memory.load(self._session_id))
 
     @property
     def history(self) -> tuple[Mapping[str, str], ...]:
@@ -28,6 +67,7 @@ class Conversation:
         return tuple(dict(message) for message in self._history)
 
     def clear(self) -> None:
+        self._memory.clear(self._session_id)
         self._history.clear()
 
     def _bounded(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -69,4 +109,6 @@ class Conversation:
         answer = "".join(chunks).strip()
         if not answer:
             raise ConversationError("The model returned an empty response. Please try again.")
-        self._history = self._bounded([*pending, {"role": "assistant", "content": answer}])
+        completed = self._bounded([*pending, {"role": "assistant", "content": answer}])
+        self._memory.save(self._session_id, completed)
+        self._history = completed

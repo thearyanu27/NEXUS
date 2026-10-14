@@ -1,9 +1,8 @@
 # NEXUS: Local AI Brain
 
-NEXUS Day 1 is a small, local-first conversational CLI. It talks to Ollama on
-your own machine, streams responses, keeps a bounded in-memory transcript, and
-uses only Python's standard library at runtime. The default setup makes no
-cloud requests and does not write conversation text to logs or disk.
+NEXUS is a local-first conversational assistant. It talks to Ollama on this
+computer, streams responses, and keeps separate saved chat sessions in SQLite.
+The default setup makes no cloud requests and does not write chat text to logs.
 
 ## Requirements
 
@@ -21,6 +20,31 @@ python app.py --check
 python app.py
 ```
 
+NEXUS runs in the terminal. Ask it to open File Explorer, Chrome, or YouTube
+(for example, “open Chrome” or “open YouTube”). These are fixed local actions;
+other requests continue to the local chat model.
+
+### Speech
+
+Running `python app.py` starts voice mode automatically. It listens for one
+phrase at a time and speaks its replies. Say “Hey Nexus”
+for an audible “I’m listening” cue, then say your request, or say the wake
+phrase and request together (for example, “Hey Nexus, open Chrome”). A short
+pause submits each phrase. NEXUS prints what it heard and speaks its response.
+Use `python app.py --text` or say “text mode” to switch to typing. Use `/voice`
+to switch back, or say “exit” to close NEXUS. Speech
+recognition uses the installed Windows English recognizer. Replies use the
+local Piper `en_US-lessac-medium` voice. On a fresh install, add Piper and
+download the voice once:
+
+```powershell
+python -m pip install -e .
+python -m piper.download_voices en_US-lessac-medium --data-dir data/voices
+```
+
+The voice model is about 63 MB and stays in the ignored local `data/voices`
+folder. Make sure Windows has a default microphone and speaker selected.
+
 To measure a short response on the current local model:
 
 ```powershell
@@ -29,7 +53,7 @@ python benchmarks/benchmark_model.py
 
 Chat commands: `/help`, `/clear`, `/exit`.
 
-No Python packages need to be installed. The test suite uses only `unittest`:
+The test suite uses only `unittest`:
 
 ```powershell
 python -m unittest discover -s tests -v
@@ -50,6 +74,7 @@ reference; the application does not load `.env` automatically.
 | `NEXUS_TEMPERATURE` | `0.2` | Sampling variation; lower values make replies more consistent |
 | `NEXUS_MAX_HISTORY_MESSAGES` | `12` | Maximum recent chat messages sent to the model |
 | `NEXUS_MAX_MESSAGE_CHARS` | `12000` | Input and response safety limit |
+| `NEXUS_MEMORY_DB` | `data/nexus.sqlite3` | Local SQLite file for recent chat history |
 
 The default URL is local-only. If you deliberately point it at another host,
 chat contents will be sent to that host. Keep the URL free of credentials.
@@ -65,8 +90,9 @@ this machine's RTX 4050 with 6 GB VRAM, so it runs across GPU and system RAM.
 `llava:7b` were already installed; Llama produced the correct tested JSON data
 inside a Markdown fence and answered the arithmetic task. `llava:7b` is
 vision-oriented and is not the selected text assistant. These are small
-smoke-test results, not a broad quality guarantee. No structured tool calling,
-screen access, voice, persistent memory, or PC control is implemented in Day 1.
+smoke-test results, not a broad quality guarantee. Beyond local speech input
+and output and the fixed Explorer, Chrome, and YouTube launch actions, screen
+access and general PC control are not implemented.
 
 ## Architecture
 
@@ -74,11 +100,18 @@ screen access, voice, persistent memory, or PC control is implemented in Day 1.
 - `nexus/models/base.py`: provider-neutral chat interface
 - `nexus/models/ollama_provider.py`: Ollama health check and NDJSON streaming
 - `nexus/agent/conversation.py`: bounded, transactional conversation history
+- `nexus/agent/memory.py`: separate chat sessions and transcript persistence in local SQLite
 - `nexus/logging_config.py`: concise logs that omit prompts and replies
 - `app.py`: diagnostics and interactive terminal loop
+- `nexus/agent/desktop_actions.py`: allowlisted Explorer, Chrome, and YouTube launch actions
+- `nexus/agent/speech.py`: microphone transcription and local Piper speech output
 - `tests/`: offline tests with a mocked Ollama HTTP API
 - `benchmarks/benchmark_model.py`: one-prompt latency and Ollama generation metrics
 - `benchmarks/results.md`: measured model comparison on this machine
 
-Conversation history currently lives only in memory and is discarded at exit.
-SQLite persistence can be added in a later milestone.
+Conversations are stored in `data/nexus.sqlite3`. NEXUS opens the most recent
+chat at startup and keeps earlier sessions available. Only complete
+user/assistant turns are saved. **Clear Chat** empties the selected session;
+**Delete** removes that session. Existing single-chat databases are migrated
+into a “Previous conversation” entry. The database is ignored by Git and is
+local plaintext; anyone with access to this Windows account and file can read it.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import math
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Mapping
 from urllib.parse import urlparse
 
@@ -23,6 +24,7 @@ class Settings:
     temperature: float = 0.2
     max_history_messages: int = 12
     max_message_chars: int = 12_000
+    memory_db_path: Path = Path(__file__).resolve().parent.parent / "data" / "nexus.sqlite3"
 
     def __post_init__(self) -> None:
         url = self.ollama_url.strip().rstrip("/")
@@ -49,6 +51,7 @@ class Settings:
             raise ConfigurationError("NEXUS_MAX_MESSAGE_CHARS must be between 1 and 200000.")
         object.__setattr__(self, "ollama_url", url)
         object.__setattr__(self, "model", self.model.strip())
+        object.__setattr__(self, "memory_db_path", Path(self.memory_db_path).expanduser())
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "Settings":
@@ -72,4 +75,7 @@ class Settings:
             temperature=temperature,
             max_history_messages=history,
             max_message_chars=max_chars,
+            memory_db_path=Path(env.get(
+                "NEXUS_MEMORY_DB", str(Path(__file__).resolve().parent.parent / "data" / "nexus.sqlite3")
+            )),
         )
