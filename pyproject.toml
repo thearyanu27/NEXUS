@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "A private, local-first conversational brain powered by Ollama."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["piper-tts>=1.8.0"]
+dependencies = ["piper-tts>=1.8.0", "faster-whisper>=1.1.0", "av>=11,<19", "sounddevice>=0.5.0"]
 
 [tool.setuptools.packages.find]
 include = ["nexus*"]

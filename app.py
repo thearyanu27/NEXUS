@@ -119,7 +119,8 @@ def _chat(provider: OllamaProvider, settings: Settings, voice_mode: bool = False
             return 0
         if command == "/help":
             print("Commands: /help, /clear (clear this chat), /exit")
-            print("You can also ask NEXUS to open File Explorer, Chrome, or YouTube.")
+            print("Try: open Chrome, YouTube, File Explorer, Notepad, Calculator, Paint, Task Manager, or Settings;")
+            print("take a screenshot; or ask a calculation such as 'calculate (12 + 8) / 4'.")
             print("Voice is on by default. Use /text to type or /voice to listen again.")
             continue
         if command == "/voice":

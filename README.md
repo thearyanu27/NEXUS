@@ -2,7 +2,9 @@
 
 NEXUS is a local-first conversational assistant. It talks to Ollama on this
 computer, streams responses, and keeps separate saved chat sessions in SQLite.
-The default setup makes no cloud requests and does not write chat text to logs.
+Microphone audio is transcribed locally; the Whisper model downloads once on
+first voice use. Chat requests go to the configured Ollama server. Chat text is
+not written to logs.
 
 ## Requirements
 
@@ -20,9 +22,11 @@ python app.py --check
 python app.py
 ```
 
-NEXUS runs in the terminal. Ask it to open File Explorer, Chrome, or YouTube
-(for example, “open Chrome” or “open YouTube”). These are fixed local actions;
-other requests continue to the local chat model.
+NEXUS runs in the terminal. Ask it to open File Explorer, Chrome, YouTube,
+Notepad, Calculator, Paint, Task Manager, or Windows Settings. Ask it to take a
+screenshot to save a PNG in your Pictures folder. Basic arithmetic requests such
+as `calculate (12 + 8) / 4` are evaluated locally. Other questions go to the
+configured Ollama model.
 
 ### Speech
 
@@ -33,17 +37,24 @@ phrase and request together (for example, “Hey Nexus, open Chrome”). A short
 pause submits each phrase. NEXUS prints what it heard and speaks its response.
 Use `python app.py --text` or say “text mode” to switch to typing. Use `/voice`
 to switch back, or say “exit” to close NEXUS. Speech
-recognition uses the installed Windows English recognizer. Replies use the
-local Piper `en_US-lessac-medium` voice. On a fresh install, add Piper and
-download the voice once:
+recognition uses the local multilingual Whisper `small` model, which is more
+robust to accents than the built-in Windows English recognizer. It defaults to
+English for short spoken commands, records with a little audio before speech
+starts, and sends the phrase after a pause. The first voice request downloads
+the model (about 500 MB); later transcription runs locally. Replies use the
+local Piper `en_US-lessac-medium` voice. On a fresh install, install the speech
+and voice dependencies, then download the voice once:
 
 ```powershell
 python -m pip install -e .
 python -m piper.download_voices en_US-lessac-medium --data-dir data/voices
 ```
 
-The voice model is about 63 MB and stays in the ignored local `data/voices`
-folder. Make sure Windows has a default microphone and speaker selected.
+The Piper voice model is about 63 MB and stays in the ignored local
+`data/voices` folder. Whisper's model is stored in the Hugging Face cache.
+Make sure the default microphone and speaker are selected. Use
+`NEXUS_WHISPER_MODEL=base` for a smaller/faster Whisper model, or
+`NEXUS_WHISPER_DEVICE=cuda` when the CTranslate2 CUDA runtime is installed.
 
 To measure a short response on the current local model:
 
@@ -75,6 +86,10 @@ reference; the application does not load `.env` automatically.
 | `NEXUS_MAX_HISTORY_MESSAGES` | `12` | Maximum recent chat messages sent to the model |
 | `NEXUS_MAX_MESSAGE_CHARS` | `12000` | Input and response safety limit |
 | `NEXUS_MEMORY_DB` | `data/nexus.sqlite3` | Local SQLite file for recent chat history |
+| `NEXUS_WHISPER_MODEL` | `small` | Local speech model; `base` uses less memory and runs faster |
+| `NEXUS_WHISPER_LANGUAGE` | `en` | Spoken language; use `hi` for Hindi or `auto` for automatic detection |
+| `NEXUS_WHISPER_DEVICE` | `cpu` | Transcription device; use `cuda` with CTranslate2 CUDA support installed |
+| `NEXUS_WHISPER_COMPUTE_TYPE` | `int8` on CPU, `float16` on CUDA | Whisper inference precision |
 
 The default URL is local-only. If you deliberately point it at another host,
 chat contents will be sent to that host. Keep the URL free of credentials.
@@ -90,9 +105,13 @@ this machine's RTX 4050 with 6 GB VRAM, so it runs across GPU and system RAM.
 `llava:7b` were already installed; Llama produced the correct tested JSON data
 inside a Markdown fence and answered the arithmetic task. `llava:7b` is
 vision-oriented and is not the selected text assistant. These are small
-smoke-test results, not a broad quality guarantee. Beyond local speech input
-and output and the fixed Explorer, Chrome, and YouTube launch actions, screen
-access and general PC control are not implemented.
+smoke-test results, not a broad quality guarantee. NEXUS can capture a
+screenshot when asked, but it does not interpret the image or see the screen
+during ordinary chat. Desktop access is limited to the listed launch actions
+and screenshot capture; arbitrary application control is not implemented.
+General answers come from the configured local model, so answer quality depends
+on that model and its training data. The default setup does not search the web
+for current facts.
 
 ## Architecture
 
@@ -103,7 +122,7 @@ access and general PC control are not implemented.
 - `nexus/agent/memory.py`: separate chat sessions and transcript persistence in local SQLite
 - `nexus/logging_config.py`: concise logs that omit prompts and replies
 - `app.py`: diagnostics and interactive terminal loop
-- `nexus/agent/desktop_actions.py`: allowlisted Explorer, Chrome, and YouTube launch actions
+- `nexus/agent/desktop_actions.py`: allowlisted Windows app launch, screenshot capture, and arithmetic
 - `nexus/agent/speech.py`: microphone transcription and local Piper speech output
 - `tests/`: offline tests with a mocked Ollama HTTP API
 - `benchmarks/benchmark_model.py`: one-prompt latency and Ollama generation metrics
