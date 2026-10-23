@@ -31,8 +31,15 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--check", action="store_true", help="check Ollama and the configured model, then exit")
     parser.add_argument("--verbose", action="store_true", help="show technical diagnostics without conversation text")
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--voice", dest="voice", action="store_true", help="start with microphone input and spoken replies (default)")
-    mode.add_argument("--text", dest="voice", action="store_false", help="start in typing-only mode")
+    mode.add_argument(
+        "--voice",
+        dest="voice",
+        action="store_true",
+        help="start with microphone input and spoken replies (default)",
+    )
+    mode.add_argument(
+        "--text", dest="voice", action="store_false", help="start in typing-only mode"
+    )
     parser.set_defaults(voice=True)
     parser.add_argument("--version", action="version", version=f"NEXUS {__version__}")
     return parser
@@ -165,7 +172,8 @@ def _chat(provider: OllamaProvider, settings: Settings, voice_mode: bool = False
         except (ConversationError, ConversationMemoryError, ProviderError) as exc:
             logger.warning("Conversation request failed: %s", exc)
             print(f"\nNEXUS could not complete that response: {exc}")
-    
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     configure_logging(args.verbose)
